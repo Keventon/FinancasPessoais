@@ -13,8 +13,10 @@ contextBridge.exposeInMainWorld('financeApi', {
   getInitialData: () => invoke('db:get-initial-data'),
   addTransaction: (data) => invoke('db:add-transaction', data),
   removeTransaction: (id) => invoke('db:remove-transaction', id),
+  updateTransaction: (data) => invoke('db:update-transaction', data),
   addCard: (data) => invoke('db:add-card', data),
   removeCard: (id) => invoke('db:remove-card', id),
   getTransactionsByMonth: ({ year, month }) =>
-    invoke('db:get-transactions-by-month', { year, month })
+    invoke('db:get-transactions-by-month', { year, month }),
+  getSavingsHistory: () => invoke('db:get-savings-history')
 });

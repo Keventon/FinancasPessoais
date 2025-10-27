@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 .pnp.*
+.npm/
 
 # Build outputs
 dist/

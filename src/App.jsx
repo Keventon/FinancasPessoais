@@ -78,8 +78,10 @@ const App = () => {
     amount: 0,
     date: dayjs().format('YYYY-MM-DD'),
     installments: 1,
+    installmentNumber: 1,
     cardId: ''
   });
+  const [savings, setSavings] = useState({ history: [], totalSaved: 0 });
   const [cardForm, setCardForm] = useState({
     name: '',
     limitValue: 0,
@@ -87,6 +89,7 @@ const App = () => {
     dueDay: 15,
     brand: ''
   });
+  const [editingTransaction, setEditingTransaction] = useState(null);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -100,6 +103,12 @@ const App = () => {
         const data = await window.financeApi.getInitialData();
         setTransactions(data.transactions || []);
         setCards(data.cards || []);
+        setSavings(
+          data.savings || {
+            history: [],
+            totalSaved: 0
+          }
+        );
       } catch (err) {
         console.error(err);
         setError('Não foi possível carregar os dados iniciais.');
@@ -173,14 +182,58 @@ const App = () => {
 
   const topCategory = categoryTotals[0];
 
+  const savingsHistory = useMemo(() => savings.history || [], [savings]);
+
+  const totalSavings = useMemo(() => Number(savings.totalSaved || 0), [savings]);
+
+  const currentMonthSavings = useMemo(() => {
+    const entry = savingsHistory.find(
+      (item) => item.year === selectedYear && item.month === selectedMonth + 1
+    );
+    return entry ? Number(entry.savings || 0) : Math.max(balance, 0);
+  }, [balance, savingsHistory, selectedYear, selectedMonth]);
+
+  const savingsHistoryWithLabels = useMemo(() => {
+    return savingsHistory.map((item) => ({
+      ...item,
+      label: `${dayjs().month(item.month - 1).format('MMMM')} de ${item.year}`,
+      savings: Number(item.savings || 0),
+      income: Number(item.income || 0),
+      expense: Number(item.expense || 0)
+    }));
+  }, [savingsHistory]);
+
   const handleTransactionChange = (field, value) => {
     setTransactionForm((prev) => {
-      if (field === 'type' && value === 'income') {
+      if (field === 'type') {
+        if (value === 'income') {
+          return {
+            ...prev,
+            type: 'income',
+            installments: 1,
+            installmentNumber: 1,
+            cardId: ''
+          };
+        }
         return {
           ...prev,
-          type: value,
-          installments: 1,
-          cardId: ''
+          type: 'expense'
+        };
+      }
+      if (field === 'installments') {
+        const total = Math.max(1, Number(value) || 1);
+        return {
+          ...prev,
+          installments: total,
+          installmentNumber: Math.min(prev.installmentNumber || 1, total)
+        };
+      }
+      if (field === 'installmentNumber') {
+        const total = prev.installments || 1;
+        const number = Math.max(1, Math.min(Number(value) || 1, total));
+        return {
+          ...prev,
+          installmentNumber: number
         };
       }
       return {
@@ -197,6 +250,27 @@ const App = () => {
     }));
   };
 
+  const startEditingTransaction = (transaction) => {
+    setEditingTransaction(transaction);
+    setTransactionForm({
+      type: transaction.type,
+      description: transaction.description,
+      category: transaction.category,
+      amount: Number(transaction.amount || 0),
+      date: dayjs(transaction.transaction_date).format('YYYY-MM-DD'),
+      installments: transaction.installments || 1,
+      installmentNumber: transaction.installment_number || 1,
+      cardId: transaction.card_id ? String(transaction.card_id) : ''
+    });
+    setError('');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTransaction(null);
+    resetTransactionForm();
+    setError('');
+  };
+
   const resetTransactionForm = () => {
     setTransactionForm({
       type: 'expense',
@@ -205,6 +279,7 @@ const App = () => {
       amount: 0,
       date: dayjs().format('YYYY-MM-DD'),
       installments: 1,
+      installmentNumber: 1,
       cardId: ''
     });
   };
@@ -219,7 +294,7 @@ const App = () => {
     });
   };
 
-  const handleAddTransaction = async (event) => {
+  const handleSubmitTransaction = async (event) => {
     event.preventDefault();
     if (!window.financeApi) {
       setError('API não disponível.');
@@ -234,29 +309,54 @@ const App = () => {
       return;
     }
     try {
+      const normalizedInstallments =
+        transactionForm.type === 'expense' ? Number(transactionForm.installments || 1) : 1;
+      const normalizedCardId =
+        transactionForm.type === 'expense' && transactionForm.cardId
+          ? Number(transactionForm.cardId)
+          : null;
       const payload = {
         type: transactionForm.type,
         description: transactionForm.description,
         category: transactionForm.category,
         amount: Number(transactionForm.amount),
         transactionDate: transactionForm.date,
-        installments:
-          transactionForm.type === 'expense' ? Number(transactionForm.installments || 1) : 1,
-        cardId:
-          transactionForm.type === 'expense' && transactionForm.cardId
-            ? Number(transactionForm.cardId)
-            : null
+        installments: normalizedInstallments,
+        cardId: normalizedCardId
       };
-      const { transactions: updatedTransactions } = await window.financeApi.addTransaction(
-        payload
-      );
-      setTransactions(updatedTransactions);
-      resetTransactionForm();
-      setFeedback('Transação adicionada com sucesso.');
+
+      if (editingTransaction) {
+        const updatePayload = {
+          ...payload,
+          id: editingTransaction.id,
+          installmentNumber:
+            transactionForm.type === 'expense'
+              ? Number(transactionForm.installmentNumber || 1)
+              : 1
+        };
+        const { transactions: updatedTransactions, savings: updatedSavings } =
+          await window.financeApi.updateTransaction(updatePayload);
+        setTransactions(updatedTransactions);
+        if (updatedSavings) {
+          setSavings(updatedSavings);
+        }
+        resetTransactionForm();
+        setEditingTransaction(null);
+        setFeedback('Transação atualizada.');
+      } else {
+        const { transactions: updatedTransactions, savings: updatedSavings } =
+          await window.financeApi.addTransaction(payload);
+        setTransactions(updatedTransactions);
+        if (updatedSavings) {
+          setSavings(updatedSavings);
+        }
+        resetTransactionForm();
+        setFeedback('Transação adicionada com sucesso.');
+      }
       setError('');
     } catch (err) {
       console.error(err);
-      setError('Não foi possível adicionar a transação.');
+      setError('Não foi possível salvar a transação.');
     }
   };
 
@@ -266,10 +366,15 @@ const App = () => {
       return;
     }
     try {
-      const { transactions: updatedTransactions } = await window.financeApi.removeTransaction(
-        transactionId
-      );
+      const { transactions: updatedTransactions, savings: updatedSavings } =
+        await window.financeApi.removeTransaction(transactionId);
       setTransactions(updatedTransactions);
+      if (updatedSavings) {
+        setSavings(updatedSavings);
+      }
+      if (editingTransaction && editingTransaction.id === transactionId) {
+        handleCancelEdit();
+      }
       setFeedback('Transação removida.');
     } catch (err) {
       console.error(err);
@@ -401,6 +506,15 @@ const App = () => {
             {topCategory ? 'Reveja seus gastos nesse grupo.' : 'Cadastre suas despesas.'}
           </p>
         </div>
+        <div className="card">
+          <h3>Poupança acumulada</h3>
+          <div className="value" style={{ color: '#0f766e' }}>
+            {formatCurrency(totalSavings)}
+          </div>
+          <p className="subtext">
+            Guardado no mês selecionado: <strong>{formatCurrency(currentMonthSavings)}</strong>
+          </p>
+        </div>
       </div>
 
       <div className="grid-responsive section">
@@ -429,13 +543,57 @@ const App = () => {
           )}
         </div>
       </div>
+
+      <div className="chart-card section">
+        <div className="chart-title">Histórico de poupança</div>
+        {savingsHistoryWithLabels.length ? (
+          <table className="compact-table">
+            <thead>
+              <tr>
+                <th>Mês</th>
+                <th>Receitas</th>
+                <th>Despesas</th>
+                <th>Guardado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {savingsHistoryWithLabels.map((item) => (
+                <tr key={`${item.year}-${item.month}`}>
+                  <td>{item.label}</td>
+                  <td>{formatCurrency(item.income)}</td>
+                  <td>{formatCurrency(item.expense)}</td>
+                  <td style={{ color: item.savings > 0 ? '#047857' : '#b91c1c' }}>
+                    {item.savings > 0 ? formatCurrency(item.savings) : 'Sem sobra'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="empty-state">
+            Cadastre receitas e despesas para visualizar quanto está guardando.
+          </div>
+        )}
+      </div>
     </>
   );
 
   const renderTransactions = () => (
     <div className="split-layout section">
-      <form className="form-card" onSubmit={handleAddTransaction}>
-        <h3>Registrar transação</h3>
+      <form className="form-card" onSubmit={handleSubmitTransaction}>
+        <h3>{editingTransaction ? 'Editar transação' : 'Registrar transação'}</h3>
+
+        {editingTransaction && (
+          <div className="edit-banner">
+            <span>
+              Editando lançamento de{' '}
+              {dayjs(editingTransaction.transaction_date).format('DD/MM/YYYY')}.
+            </span>
+            <button type="button" className="secondary" onClick={handleCancelEdit}>
+              Cancelar edição
+            </button>
+          </div>
+        )}
 
         <div className="form-row grid-2">
           <label className="label">
@@ -533,7 +691,26 @@ const App = () => {
           </div>
         )}
 
-        <button type="submit">Salvar transação</button>
+        {editingTransaction && transactionForm.type === 'expense' && transactionForm.installments > 1 && (
+          <div className="form-row grid-2">
+            <label className="label">
+              Parcela nº
+              <input
+                type="number"
+                min="1"
+                max={transactionForm.installments}
+                value={transactionForm.installmentNumber}
+                onChange={(event) =>
+                  handleTransactionChange('installmentNumber', Number(event.target.value))
+                }
+              />
+            </label>
+          </div>
+        )}
+
+        <button type="submit">
+          {editingTransaction ? 'Atualizar transação' : 'Salvar transação'}
+        </button>
       </form>
 
       <div>
@@ -551,7 +728,7 @@ const App = () => {
                 <th>Valor</th>
                 <th>Parcelas</th>
                 <th>Cartão</th>
-                <th></th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -579,13 +756,22 @@ const App = () => {
                       : '-'}
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      className="secondary danger"
-                      onClick={() => handleRemoveTransaction(transaction.id)}
-                    >
-                      Remover
-                    </button>
+                    <div className="table-buttons">
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => startEditingTransaction(transaction)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary danger"
+                        onClick={() => handleRemoveTransaction(transaction.id)}
+                      >
+                        Remover
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -712,7 +898,7 @@ const App = () => {
     <div className="app-shell">
       <aside className="sidebar">
         <div>
-          <h1>Personal Finance</h1>
+          <h1>Finanças Pessoais</h1>
           <p style={{ color: 'rgba(255,255,255,0.65)', marginTop: '6px', fontSize: '0.9rem' }}>
             Controle completo de gastos, cartões e metas.
           </p>

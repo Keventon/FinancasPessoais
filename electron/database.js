@@ -100,21 +100,6 @@ const selectAll = (query, params = []) =>
     });
   });
 
-const selectOne = (query, params = []) =>
-  new Promise((resolve, reject) => {
-    if (!db) {
-      reject(new Error('Database not initialized'));
-      return;
-    }
-    db.get(query, params, (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(row);
-      }
-    });
-  });
-
 const addCard = async ({ name, limitValue, closingDay, dueDay, brand }) => {
   await runQuery(
     `INSERT INTO cards (name, limit_value, closing_day, due_day, brand)
@@ -212,14 +197,96 @@ const removeTransaction = async (id) => {
   );
 };
 
+const updateTransaction = async ({
+  id,
+  type,
+  description,
+  category,
+  amount,
+  transactionDate,
+  installments = 1,
+  installmentNumber = 1,
+  cardId = null
+}) => {
+  const normalizedType = type === 'income' ? 'income' : 'expense';
+  const normalizedInstallments =
+    normalizedType === 'income' ? 1 : Math.max(1, Number(installments) || 1);
+  const normalizedInstallmentNumber =
+    normalizedType === 'income'
+      ? 1
+      : Math.min(Math.max(1, Number(installmentNumber) || 1), normalizedInstallments);
+
+  await runQuery(
+    `UPDATE transactions
+       SET type = ?,
+           description = ?,
+           category = ?,
+           amount = ?,
+           transaction_date = ?,
+           card_id = ?,
+           installments = ?,
+           installment_number = ?
+     WHERE id = ?`,
+    [
+      normalizedType,
+      description.trim(),
+      category.trim(),
+      Number(amount),
+      transactionDate,
+      normalizedType === 'income' ? null : cardId || null,
+      normalizedInstallments,
+      normalizedInstallmentNumber,
+      id
+    ]
+  );
+
+  return selectAll(
+    `SELECT * FROM transactions ORDER BY date(transaction_date) DESC, created_at DESC`
+  );
+};
+
+const getSavingsHistory = async () => {
+  const rows = await selectAll(
+    `SELECT 
+       CAST(strftime('%Y', transaction_date) AS INTEGER) AS year,
+       CAST(strftime('%m', transaction_date) AS INTEGER) AS month,
+       SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) AS total_income,
+       SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) AS total_expense
+     FROM transactions
+     GROUP BY year, month
+     ORDER BY year DESC, month DESC`
+  );
+
+  const history = rows.map((row) => {
+    const income = Number(row.total_income || 0);
+    const expense = Number(row.total_expense || 0);
+    const savings = Math.max(income - expense, 0);
+    return {
+      year: row.year,
+      month: row.month,
+      income,
+      expense,
+      savings
+    };
+  });
+
+  const totalSaved = history.reduce((acc, entry) => acc + entry.savings, 0);
+
+  return {
+    history,
+    totalSaved
+  };
+};
+
 const getAllData = async () => {
-  const [cards, transactions] = await Promise.all([
+  const [cards, transactions, savings] = await Promise.all([
     selectAll('SELECT * FROM cards ORDER BY name ASC'),
     selectAll(
       `SELECT * FROM transactions ORDER BY date(transaction_date) DESC, created_at DESC`
-    )
+    ),
+    getSavingsHistory()
   ]);
-  return { cards, transactions };
+  return { cards, transactions, savings };
 };
 
 const getTransactionsByMonth = async (year, month) => {
@@ -239,6 +306,8 @@ module.exports = {
   removeCard,
   addTransaction,
   removeTransaction,
+  updateTransaction,
   getAllData,
-  getTransactionsByMonth
+  getTransactionsByMonth,
+  getSavingsHistory
 };

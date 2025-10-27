@@ -1,28 +1,62 @@
 const path = require('path');
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const fs = require('fs');
+const { app, BrowserWindow, ipcMain, shell, nativeImage } = require('electron');
 const {
   initializeDatabase,
   addCard,
   removeCard,
   addTransaction,
   removeTransaction,
+  updateTransaction,
   getAllData,
-  getTransactionsByMonth
+  getTransactionsByMonth,
+  getSavingsHistory
 } = require('./database');
+
+const APP_NAME = 'Finanças Pessoais';
+const APP_ID = 'com.financaspessoais.app';
+
+app.name = APP_NAME;
+process.title = APP_NAME;
 
 const isMac = process.platform === 'darwin';
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 
 let mainWindow;
 
+const resolveIconPath = () => {
+  const iconFile =
+    process.platform === 'win32'
+      ? 'icon.ico'
+      : process.platform === 'darwin'
+      ? 'icon.icns'
+      : 'icon.png';
+  const basePath = app.isPackaged
+    ? path.join(process.resourcesPath, 'build')
+    : path.join(__dirname, '..', 'build');
+  const fullPath = path.join(basePath, iconFile);
+  return fs.existsSync(fullPath) ? fullPath : undefined;
+};
+
+const resolveIconImage = () => {
+  const iconPath = resolveIconPath();
+  if (!iconPath) {
+    return null;
+  }
+  const image = nativeImage.createFromPath(iconPath);
+  return image && !image.isEmpty() ? image : null;
+};
+
 const createWindow = async () => {
+  const iconPath = resolveIconPath();
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 1024,
     minHeight: 700,
-    title: 'Personal Finance',
+    title: APP_NAME,
     backgroundColor: '#f3f4f6',
+    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -55,12 +89,20 @@ const registerIpcHandlers = () => {
 
   ipcMain.handle('db:add-transaction', async (_event, payload) => {
     const transactions = await addTransaction(payload);
-    return { transactions };
+    const savings = await getSavingsHistory();
+    return { transactions, savings };
   });
 
   ipcMain.handle('db:remove-transaction', async (_event, transactionId) => {
     const transactions = await removeTransaction(transactionId);
-    return { transactions };
+    const savings = await getSavingsHistory();
+    return { transactions, savings };
+  });
+
+  ipcMain.handle('db:update-transaction', async (_event, payload) => {
+    const transactions = await updateTransaction(payload);
+    const savings = await getSavingsHistory();
+    return { transactions, savings };
   });
 
   ipcMain.handle('db:add-card', async (_event, payload) => {
@@ -77,6 +119,11 @@ const registerIpcHandlers = () => {
     const transactions = await getTransactionsByMonth(year, month);
     return { transactions };
   });
+
+  ipcMain.handle('db:get-savings-history', async () => {
+    const savings = await getSavingsHistory();
+    return { savings };
+  });
 };
 
 const initializeApp = async () => {
@@ -86,6 +133,17 @@ const initializeApp = async () => {
 };
 
 app.whenReady().then(async () => {
+  app.setName(APP_NAME);
+  if (process.platform === 'win32') {
+    app.setAppUserModelId(APP_ID);
+  }
+  if (isMac && app.dock) {
+    const dockIcon = resolveIconImage();
+    if (dockIcon) {
+      app.dock.setIcon(dockIcon);
+    }
+  }
+
   try {
     await initializeApp();
   } catch (error) {

@@ -1,10 +1,13 @@
 {
-  "name": "personal-finance",
+  "name": "financas-pessoais",
   "version": "1.0.0",
-  "description": "Aplicativo de finanças pessoais em Electron com dashboard e controle de cartões.",
+  "description": "Aplicativo Finanças Pessoais em Electron com dashboard e controle de cartões.",
   "main": "electron/main.js",
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
+    "generate:icons": "node scripts/generate-icons.js",
+    "prebuild": "npm run generate:icons",
+    "prepackage": "npm run generate:icons",
     "dev": "concurrently \"npm:dev:renderer\" \"npm:dev:main\"",
     "dev:renderer": "vite",
     "dev:main": "wait-on tcp:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
@@ -37,12 +40,13 @@
     "cross-env": "^10.1.0",
     "electron": "^38.4.0",
     "electron-builder": "^26.0.12",
+    "png2icons": "^2.0.1",
     "vite": "^7.1.12",
     "wait-on": "^9.0.1"
   },
   "build": {
-    "appId": "com.personalfinance.app",
-    "productName": "Personal Finance",
+    "appId": "com.financaspessoais.app",
+    "productName": "Finanças Pessoais",
     "files": [
       "dist/**/*",
       "electron/**/*",
@@ -53,13 +57,19 @@
       "buildResources": "build"
     },
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg",
         "zip"
       ],
-      "category": "public.app-category.finance"
+      "category": "public.app-category.finance",
+      "extendInfo": {
+        "CFBundleDisplayName": "Finanças Pessoais",
+        "CFBundleName": "Finanças Pessoais"
+      }
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -69,6 +79,14 @@
           ]
         }
       ]
+    },
+    "linux": {
+      "icon": "build",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Finance"
     }
   }
 }
