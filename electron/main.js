@@ -19,10 +19,49 @@ const APP_ID = 'com.financaspessoais.app';
 app.name = APP_NAME;
 process.title = APP_NAME;
 
+app.commandLine.appendSwitch('disable-http2');
+
+process.on('uncaughtException', (error) => {
+  log('Uncaught exception', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  log('Unhandled rejection', reason instanceof Error ? reason : { reason });
+});
+
 const isMac = process.platform === 'darwin';
 const isDev = process.env.VITE_DEV_SERVER_URL !== undefined;
 
 let mainWindow;
+
+const getLogFilePath = () => {
+  try {
+    return path.join(app.getPath('logs'), 'financas-pessoais.log');
+  } catch (error) {
+    return path.join(process.cwd(), 'financas-pessoais.log');
+  }
+};
+
+const log = (...args) => {
+  try {
+    const logFilePath = getLogFilePath();
+    const timestamp = new Date().toISOString();
+    const message = args
+      .map((item) => {
+        if (item instanceof Error) {
+          return `${item.stack || item.message}`;
+        }
+        if (typeof item === 'object') {
+          return JSON.stringify(item);
+        }
+        return String(item);
+      })
+      .join(' ');
+    fs.appendFileSync(logFilePath, `[${timestamp}] ${message}\n`, 'utf8');
+  } catch (error) {
+    console.error('Failed to write log entry', error);
+  }
+};
 
 const resolveIconPath = () => {
   const iconFile =
@@ -31,24 +70,30 @@ const resolveIconPath = () => {
       : process.platform === 'darwin'
       ? 'icon.icns'
       : 'icon.png';
-  const basePath = app.isPackaged
+  const packaged = app.isPackaged;
+  const basePath = packaged
     ? path.join(process.resourcesPath, 'build')
     : path.join(__dirname, '..', 'build');
   const fullPath = path.join(basePath, iconFile);
-  return fs.existsSync(fullPath) ? fullPath : undefined;
+  const inResources = path.join(process.resourcesPath, iconFile);
+  const chosenPath = packaged && fs.existsSync(inResources) ? inResources : fullPath;
+  log('resolveIconPath', { packaged, iconFile, chosenPath, exists: fs.existsSync(chosenPath) });
+  return fs.existsSync(chosenPath) ? chosenPath : undefined;
 };
 
 const resolveIconImage = () => {
   const iconPath = resolveIconPath();
   if (!iconPath) {
+    log('Icon path not found');
     return null;
   }
   const image = nativeImage.createFromPath(iconPath);
+  log('Loaded dock icon', { iconPath, empty: image.isEmpty() });
   return image && !image.isEmpty() ? image : null;
 };
 
 const createWindow = async () => {
-  const iconPath = resolveIconPath();
+  log('Creating main window', { isDev });
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -56,7 +101,6 @@ const createWindow = async () => {
     minHeight: 700,
     title: APP_NAME,
     backgroundColor: '#f3f4f6',
-    icon: iconPath,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -128,26 +172,25 @@ const registerIpcHandlers = () => {
 
 const initializeApp = async () => {
   await initializeDatabase(app);
+  log('Database initialized');
   registerIpcHandlers();
+  log('IPC handlers ready');
   await createWindow();
+  log('Main window created');
 };
 
 app.whenReady().then(async () => {
+  log('App ready lifecycle started');
   app.setName(APP_NAME);
   if (process.platform === 'win32') {
     app.setAppUserModelId(APP_ID);
-  }
-  if (isMac && app.dock) {
-    const dockIcon = resolveIconImage();
-    if (dockIcon) {
-      app.dock.setIcon(dockIcon);
-    }
   }
 
   try {
     await initializeApp();
   } catch (error) {
     console.error('Failed to initialize application', error);
+    log('Initialization failed', error);
     app.quit();
   }
 
@@ -160,6 +203,7 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   if (!isMac) {
+    log('All windows closed, quitting app');
     app.quit();
   }
 });
