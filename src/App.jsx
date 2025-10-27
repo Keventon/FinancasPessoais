@@ -43,17 +43,29 @@ const categoriesPreset = [
   'Outros'
 ];
 
+const cardBrandOptions = [
+  'Visa',
+  'Mastercard',
+  'Elo',
+  'American Express',
+  'Hipercard',
+  'Diners Club',
+  'Discover',
+  'Cabal',
+  'Outro'
+];
+
 const colorPalette = [
-  '#6366F1',
-  '#8B5CF6',
-  '#EC4899',
-  '#F97316',
+  '#047857',
   '#10B981',
-  '#14B8A6',
-  '#0EA5E9',
+  '#34D399',
+  '#22C55E',
+  '#65A30D',
   '#F59E0B',
+  '#0EA5E9',
+  '#F97316',
   '#EF4444',
-  '#22C55E'
+  '#14B8A6'
 ];
 
 const formatCurrency = (value = 0) =>
@@ -873,13 +885,18 @@ const App = () => {
           </label>
 
           <label className="label">
-            Bandeira (opcional)
-            <input
-              type="text"
-              placeholder="Visa, Mastercard..."
+            Bandeira do cartão
+            <select
               value={cardForm.brand}
               onChange={(event) => handleCardChange('brand', event.target.value)}
-            />
+            >
+              <option value="">Selecione a bandeira</option>
+              {cardBrandOptions.map((brand) => (
+                <option key={brand} value={brand}>
+                  {brand}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
 

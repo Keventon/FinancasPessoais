@@ -3,9 +3,13 @@ const path = require('path');
 const png2icons = require('png2icons');
 
 const projectRoot = path.resolve(__dirname, '..');
-const preferredSource = path.join(projectRoot, 'image.png');
+const primarySource = path.join(projectRoot, 'logo.png');
+const secondarySource = path.join(projectRoot, 'image.png');
 const legacySource = path.join(projectRoot, 'build', 'logo.png');
-const sourcePath = fs.existsSync(preferredSource) ? preferredSource : legacySource;
+
+const sourcePath =
+  [primarySource, secondarySource, legacySource].find((candidate) => fs.existsSync(candidate)) ||
+  null;
 const outputDir = path.resolve(__dirname, '..', 'build');
 const linuxIconsDir = path.join(outputDir, 'icons');
 
@@ -15,9 +19,9 @@ const ensureFile = (filePath, buffer) => {
 };
 
 const main = () => {
-  if (!fs.existsSync(sourcePath)) {
+  if (!sourcePath) {
     console.error(
-      `Logo base file not found. Checked: ${preferredSource} and ${legacySource}`
+      `Logo base file not found. Checked: ${primarySource}, ${secondarySource} and ${legacySource}`
     );
     process.exit(1);
   }

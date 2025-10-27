@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const { app, BrowserWindow, ipcMain, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, nativeImage, Menu } = require('electron');
 const {
   initializeDatabase,
   addCard,
@@ -13,7 +13,7 @@ const {
   getSavingsHistory
 } = require('./database');
 
-const APP_NAME = 'Finanças Pessoais';
+const APP_NAME = 'Financas Pessoais';
 const APP_ID = 'com.financaspessoais.app';
 
 app.name = APP_NAME;
@@ -61,6 +61,80 @@ const log = (...args) => {
   } catch (error) {
     console.error('Failed to write log entry', error);
   }
+};
+
+const buildMenuTemplate = () => {
+  const template = [];
+
+  if (isMac) {
+    template.push({
+      label: APP_NAME,
+      submenu: [
+        { role: 'about', label: `Sobre ${APP_NAME}` },
+        { type: 'separator' },
+        { role: 'services', label: 'Servi\u00e7os', submenu: [] },
+        { type: 'separator' },
+        { role: 'hide', label: `Ocultar ${APP_NAME}` },
+        { role: 'hideOthers', label: 'Ocultar outros' },
+        { role: 'unhide', label: 'Mostrar tudo' },
+        { type: 'separator' },
+        { role: 'quit', label: 'Sair' }
+      ]
+    });
+  }
+
+  template.push({
+    label: 'Arquivo',
+    submenu: [
+      isMac ? { role: 'close', label: 'Fechar janela' } : { role: 'quit', label: 'Sair' }
+    ]
+  });
+
+  template.push({
+    label: 'Exibir',
+    submenu: [
+      { role: 'reload', label: 'Recarregar' },
+      { role: 'forceReload', label: 'Recarregar for\u00e7ado' },
+      { role: 'toggleDevTools', label: 'Alternar ferramentas de desenvolvimento' },
+      { type: 'separator' },
+      { role: 'resetZoom', label: 'Redefinir zoom' },
+      { role: 'zoomIn', label: 'Aumentar zoom' },
+      { role: 'zoomOut', label: 'Diminuir zoom' },
+      { type: 'separator' },
+      { role: 'togglefullscreen', label: 'Alternar tela cheia' }
+    ]
+  });
+
+  template.push({
+    label: 'Janela',
+    submenu: [
+      { role: 'minimize', label: 'Minimizar' },
+      ...(isMac
+        ? [
+            { role: 'zoom', label: 'Zoom' },
+            { type: 'separator' },
+            { role: 'front', label: 'Trazer todas para frente' }
+          ]
+        : [{ role: 'close', label: 'Fechar' }])
+    ]
+  });
+
+  template.push({
+    label: 'Ajuda',
+    submenu: [
+      {
+        label: 'Saiba mais sobre o Electron',
+        click: () => shell.openExternal('https://www.electronjs.org')
+      }
+    ]
+  });
+
+  return template;
+};
+
+const createApplicationMenu = () => {
+  const menu = Menu.buildFromTemplate(buildMenuTemplate());
+  Menu.setApplicationMenu(menu);
 };
 
 const resolveIconPath = () => {
@@ -187,6 +261,7 @@ app.whenReady().then(async () => {
   }
 
   try {
+    createApplicationMenu();
     await initializeApp();
   } catch (error) {
     console.error('Failed to initialize application', error);
@@ -207,3 +282,4 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
