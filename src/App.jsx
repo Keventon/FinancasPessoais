@@ -90,6 +90,10 @@ const App = () => {
     brand: ''
   });
   const [editingTransaction, setEditingTransaction] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState({
+    open: false,
+    transaction: null
+  });
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -271,6 +275,20 @@ const App = () => {
     setError('');
   };
 
+  const requestRemoveTransaction = (transaction) => {
+    setConfirmDelete({
+      open: true,
+      transaction
+    });
+  };
+
+  const closeRemoveModal = () => {
+    setConfirmDelete({
+      open: false,
+      transaction: null
+    });
+  };
+
   const resetTransactionForm = () => {
     setTransactionForm({
       type: 'expense',
@@ -375,6 +393,7 @@ const App = () => {
       if (editingTransaction && editingTransaction.id === transactionId) {
         handleCancelEdit();
       }
+      closeRemoveModal();
       setFeedback('Transação removida.');
     } catch (err) {
       console.error(err);
@@ -767,7 +786,7 @@ const App = () => {
                       <button
                         type="button"
                         className="secondary danger"
-                        onClick={() => handleRemoveTransaction(transaction.id)}
+                        onClick={() => requestRemoveTransaction(transaction)}
                       >
                         Remover
                       </button>
@@ -783,6 +802,40 @@ const App = () => {
           </div>
         )}
       </div>
+      {confirmDelete.open && confirmDelete.transaction && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirmDeleteTitle"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              closeRemoveModal();
+            }
+          }}
+        >
+          <div className="modal-card">
+            <h4 id="confirmDeleteTitle">Remover transação</h4>
+            <p>
+              Tem certeza que deseja remover{' '}
+              <strong>{confirmDelete.transaction.description}</strong> de{' '}
+              {dayjs(confirmDelete.transaction.transaction_date).format('DD/MM/YYYY')}?
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="secondary" onClick={closeRemoveModal}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={() => handleRemoveTransaction(confirmDelete.transaction.id)}
+              >
+                Remover
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 

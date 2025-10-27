@@ -136,6 +136,11 @@ button.secondary:hover {
 .main-content {
   padding: 32px 40px;
   overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.main-content::-webkit-scrollbar {
+  display: none;
 }
 
 .content-header {
@@ -343,6 +348,69 @@ button.secondary:hover {
 
 .danger {
   color: #b91c1c;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 40;
+}
+
+.modal-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.25);
+  display: grid;
+  gap: 18px;
+}
+
+.modal-card h4 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.modal-card p {
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+button.danger:not(.secondary) {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  border: none;
+}
+
+button.danger:not(.secondary):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 32px rgba(239, 68, 68, 0.35);
+}
+
+button.secondary.danger {
+  color: #b91c1c;
+  border-color: rgba(248, 113, 113, 0.5);
+  background: rgba(254, 226, 226, 0.35);
+}
+
+button.secondary.danger:hover {
+  border-color: #dc2626;
+  background: rgba(254, 226, 226, 0.55);
+  color: #991b1b;
 }
 
 .chart-card {
