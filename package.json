@@ -4,7 +4,7 @@
   "description": "Aplicativo Finanças Pessoais em Electron com dashboard e controle de cartões.",
   "main": "electron/main.js",
   "scripts": {
-    "postinstall": "@electron/rebuild",
+    "postinstall": "electron-rebuild",
     "generate:icons": "node scripts/generate-icons.js",
     "prebuild": "npm run generate:icons",
     "prepackage": "npm run generate:icons",

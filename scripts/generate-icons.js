@@ -2,7 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const png2icons = require('png2icons');
 
-const sourcePath = path.resolve(__dirname, '..', 'build', 'logo.png');
+const projectRoot = path.resolve(__dirname, '..');
+const preferredSource = path.join(projectRoot, 'image.png');
+const legacySource = path.join(projectRoot, 'build', 'logo.png');
+const sourcePath = fs.existsSync(preferredSource) ? preferredSource : legacySource;
 const outputDir = path.resolve(__dirname, '..', 'build');
 const linuxIconsDir = path.join(outputDir, 'icons');
 
@@ -13,7 +16,9 @@ const ensureFile = (filePath, buffer) => {
 
 const main = () => {
   if (!fs.existsSync(sourcePath)) {
-    console.error(`Logo base file not found at ${sourcePath}`);
+    console.error(
+      `Logo base file not found. Checked: ${preferredSource} and ${legacySource}`
+    );
     process.exit(1);
   }
 
@@ -23,6 +28,10 @@ const main = () => {
   }
 
   const pngBuffer = fs.readFileSync(sourcePath);
+
+  // Keep a reference copy inside build directory for backward compatibility
+  const logoCopyPath = path.join(outputDir, 'logo.png');
+  fs.copyFileSync(sourcePath, logoCopyPath);
 
   // Generate modern ICNS for macOS
   const icns = png2icons.createICNS(pngBuffer, png2icons.BICUBIC, true);
